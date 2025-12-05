@@ -1,0 +1,6 @@
+a=int(input("ilk reqemi taxil et"))
+print(a*a*a, a+a, a*a)
+b=int(input("ikinci reqemi taxil et"))
+print(b*b*b, b+b, b*b)
+c=int(input("ucuncu reqemi taxil et"))
+print(c*c*c, c+c, c*c)
