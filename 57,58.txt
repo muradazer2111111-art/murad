@@ -1,0 +1,287 @@
+
+
+import tkinter as tk
+from tkinter import ttk, messagebox
+import json
+import os
+
+DATA_FILE = "turbo_users.json"
+
+def load_users():
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+def save_users(users):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(users, f, ensure_ascii=False, indent=2)
+
+
+class TurboApp:
+    def __init__(self, root):
+        self.root = root
+        root.title("Turbo.az – Qeydiyyat Sistemi")
+        root.geometry("900x550")
+
+        self.users = load_users()
+
+        notebook = ttk.Notebook(root)
+        notebook.pack(fill="both", expand=True, padx=10, pady=10)
+
+
+        self.tab_reg = ttk.Frame(notebook)
+        notebook.add(self.tab_reg, text="Qeydiyyat")
+
+        self.build_registration_tab(self.tab_reg)
+
+
+        self.tab_admin = ttk.Frame(notebook)
+        notebook.add(self.tab_admin, text="Admin Paneli")
+
+        self.build_admin_tab(self.tab_admin)
+
+        self.refresh_lists()
+
+
+    def build_registration_tab(self, frame):
+        frm = ttk.LabelFrame(frame, text="Turbo.az Qeydiyyat Formu", padding=10)
+        frm.pack(fill="x", padx=10, pady=10)
+
+        labels = {
+            "ad": "Ad",
+            "ili": "İli (istehsal ili)",
+            "nomre": "Nömrə (telefon)",
+            "masinin_nomresi": "Maşının nömrəsi",
+            "qiymeti": "Qiyməti"
+        }
+
+        self.entries = {}
+
+        for i, (key, text) in enumerate(labels.items()):
+            ttk.Label(frm, text=text + ":").grid(row=i, column=0, sticky="e", padx=6, pady=6)
+            ent = ttk.Entry(frm, width=40)
+            ent.grid(row=i, column=1, padx=6, pady=6)
+            self.entries[key] = ent
+
+        ttk.Button(frm, text="Qeydiyyat", command=self.register_user).grid(row=6, column=0, pady=10)
+        ttk.Button(frm, text="Seçiləni Yenilə", command=self.update_selected).grid(row=6, column=1, pady=10)
+        ttk.Button(frm, text="Təmizlə", command=self.clear_form).grid(row=7, column=1, pady=5)
+
+
+        box_frame = ttk.LabelFrame(frame, text="Qeydiyyatda Olan Maşınlar", padding=10)
+        box_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        self.listbox = tk.Listbox(box_frame, height=12)
+        self.listbox.pack(side="left", fill="both", expand=True)
+        self.listbox.bind("<<ListboxSelect>>", self.fill_form_from_list)
+
+        scroll = ttk.Scrollbar(box_frame, command=self.listbox.yview)
+        scroll.pack(side="right", fill="y")
+        self.listbox.config(yscrollcommand=scroll.set)
+
+
+    def build_admin_tab(self, frame):
+        left = ttk.LabelFrame(frame, text="Qeydiyyatda Olan Maşınlar", padding=10)
+        left.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+
+        self.admin_list = tk.Listbox(left)
+        self.admin_list.pack(fill="both", expand=True)
+        self.admin_list.bind("<<ListboxSelect>>", self.admin_select)
+
+        right = ttk.LabelFrame(frame, text="Redaktə Paneli", padding=10)
+        right.pack(side="right", fill="y", padx=10)
+
+        self.ad_e = ttk.Entry(right, width=30)
+        self.ili_e = ttk.Entry(right, width=30)
+        self.nomre_e = ttk.Entry(right, width=30)
+        self.masinin_nomre_e = ttk.Entry(right, width=30)
+        self.qiymeti_e = ttk.Entry(right, width=30)
+
+        edits = [
+            ("Ad", self.ad_e),
+            ("İli", self.ili_e),
+            ("Nömrə", self.nomre_e),
+            ("Maşının nömrəsi", self.masinin_nomre_e),
+            ("Qiyməti", self.qiymeti_e)
+        ]
+
+        for text, widget in edits:
+            ttk.Label(right, text=text + ":").pack(anchor="w")
+            widget.pack(anchor="w", pady=3)
+
+        ttk.Button(right, text="Dəyişikliyi Saxla", command=self.admin_save).pack(fill="x", pady=5)
+        ttk.Button(right, text="Seçiləni Sil", command=self.admin_delete).pack(fill="x", pady=5)
+
+
+    def validate_fields(self, ad, ili, nomre, masinin, qiymeti):
+        if not ad or not ili or not nomre or not masinin or not qiymeti:
+            return False, "Bütün sahələr doldurulmalıdır."
+
+        if not ili.isdigit():
+            return False, "İli yalnız rəqəm olmalıdır."
+
+        if not nomre.isdigit():
+            return False, "Telefon nömrəsi yalnız rəqəm olmalıdır."
+
+        if not qiymeti.isdigit():
+            return False, "Qiymət yalnız rəqəm olmalıdır."
+
+        return True, ""
+
+
+    def register_user(self):
+        data = {
+            "ad": self.entries["ad"].get().strip(),
+            "ili": self.entries["ili"].get().strip(),
+            "nomre": self.entries["nomre"].get().strip(),
+            "masinin_nomresi": self.entries["masinin_nomresi"].get().strip(),
+            "qiymeti": self.entries["qiymeti"].get().strip()
+        }
+
+        ok, msg = self.validate_fields(**data)
+        if not ok:
+            messagebox.showerror("Xəta", msg)
+            return
+
+        data["ili"] = int(data["ili"])
+        data["qiymeti"] = int(data["qiymeti"])
+
+        self.users.append(data)
+        save_users(self.users)
+        self.refresh_lists()
+        self.clear_form()
+        messagebox.showinfo("Uğur", "Qeydiyyat tamamlandı.")
+
+
+    def clear_form(self):
+        for ent in self.entries.values():
+            ent.delete(0, tk.END)
+
+
+    def refresh_lists(self):
+        self.listbox.delete(0, tk.END)
+        self.admin_list.delete(0, tk.END)
+
+        for u in self.users:
+            text = f"{u['ad']} | {u['ili']} | {u['nomre']} | {u['masinin_nomresi']} | {u['qiymeti']}"
+            self.listbox.insert(tk.END, text)
+            self.admin_list.insert(tk.END, text)
+
+
+    def fill_form_from_list(self, event):
+        sel = self.listbox.curselection()
+        if not sel:
+            return
+        u = self.users[sel[0]]
+
+        self.entries["ad"].delete(0, tk.END)
+        self.entries["ad"].insert(0, ["ad"])
+
+        self.entries["ili"].delete(0, tk.END)
+        self.entries["ili"].insert(0, ["ili"])
+
+        self.entries["nomre"].delete(0, tk.END)
+        self.entries["nomre"].insert(0, ["nomre"])
+
+        self.entries["masinin_nomresi"].delete(0, tk.END)
+        self.entries["masinin_nomresi"].insert(0, ["masinin_nomresi"])
+
+        self.entries["qiymeti"].delete(0, tk.END)
+        self.entries["qiymeti"].insert(0, ["qiymeti"])
+
+
+    def update_selected(self):
+        sel = self.listbox.curselection()
+        if not sel:
+            messagebox.showwarning("Xəbərdarlıq", "Seçim edilməyib.")
+            return
+
+        index = sel[0]
+
+        data = {
+            "ad": self.entries["ad"].get().strip(),
+            "ili": self.entries["ili"].get().strip(),
+            "nomre": self.entries["nomre"].get().strip(),
+            "masinin_nomresi": self.entries["masinin_nomresi"].get().strip(),
+            "qiymeti": self.entries["qiymeti"].get().strip()
+        }
+
+        ok, msg = self.validate_fields(**data)
+        if not ok:
+            messagebox.showerror("Xəta", msg)
+            return
+
+        data["ili"] = int(data["ili"])
+        data["qiymeti"] = int(data["qiymeti"])
+
+        self.users[index] = data
+        save_users(self.users)
+        self.refresh_lists()
+        messagebox.showinfo("Uğur", "Məlumat yeniləndi.")
+
+
+    def admin_select(self, event):
+        sel = self.admin_list.curselection()
+        if not sel:
+            return
+
+        u = self.users[sel[0]]
+
+        self.ad_e.delete(0, tk.END); self.ad_e.insert(0, "ad")
+        self.ili_e.delete(0, tk.END); self.ili_e.insert(0, "ili")
+        self.nomre_e.delete(0, tk.END); self.nomre_e.insert(0, "nomre")
+        self.masinin_nomre_e.delete(0, tk.END); self.masinin_nomre_e.insert(0, "masinin_nomresi")
+        self.qiymeti_e.delete(0, tk.END); self.qiymeti_e.insert(0, "qiymeti")
+
+    def admin_save(self):
+        sel = self.admin_list.curselection()
+        if not sel:
+            messagebox.showwarning("Xəbərdarlıq", "Heç nə seçilməyib.")
+            return
+
+        idx = sel[0]
+
+        ad = self.ad_e.get().strip()
+        ili = self.ili_e.get().strip()
+        nomre = self.nomre_e.get().strip()
+        masinin = self.masinin_nomre_e.get().strip()
+        qiymeti = self.qiymeti_e.get().strip()
+
+        ok, msg = self.validate_fields(ad, ili, nomre, masinin, qiymeti)
+        if not ok:
+            messagebox.showerror("Xəta", msg)
+            return
+
+        self.users[idx] = {
+            "ad": ad,
+            "ili": int(ili),
+            "nomre": nomre,
+            "masinin_nomresi": masinin,
+            "qiymeti": int(qiymeti)
+        }
+
+        save_users(self.users)
+        self.refresh_lists()
+        messagebox.showinfo("Uğur", "Dəyişiklik edildi.")
+
+    def admin_delete(self):
+        sel = self.admin_list.curselection()
+        if not sel:
+            messagebox.showwarning("Xəbərdarlıq", "Seçim edilməyib.")
+            return
+
+        if messagebox.askyesno("Təsdiq", "Silmək istəyirsiniz?"):
+            self.users.pop(sel[0])
+            save_users(self.users)
+            self.refresh_lists()
+
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = TurboApp(root)
+    root.mainloop()
